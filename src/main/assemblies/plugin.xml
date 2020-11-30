@@ -10,12 +10,10 @@
       <source>${basedir}/src/main/plugin-metadata/plugin-descriptor.properties</source>
       <filtered>true</filtered>
     </file>
-    <!--
     <file>
       <source>${basedir}/src/main/plugin-metadata/plugin-security.policy</source>
-      <filtered>false</filtered>
+      <filtered>true</filtered>
     </file>
-     -->
   </files>
   <dependencySets>
     <dependencySet>
@@ -23,7 +21,18 @@
       <useTransitiveFiltering>true</useTransitiveFiltering>
       <excludes>
         <exclude>org.elasticsearch:elasticsearch</exclude>
+        <exclude>com.github.stephenc.jcip:jcip-annotations</exclude>
+        <exclude>com.google.code.findbugs</exclude>
+        <exclude>io.github.openfeign</exclude>
+        <exclude>org.aspectj</exclude>
+        <exclude>log4j</exclude>
+        <exclude>com.fasterxml.jackson.core:jackson-core</exclude>
       </excludes>
+<!--      <includes>-->
+<!--        <include>-->
+<!--          com.phonepe.platform.http:http-client-->
+<!--        </include>-->
+<!--      </includes>-->
     </dependencySet>
   </dependencySets>
 </assembly>

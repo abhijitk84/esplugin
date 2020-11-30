@@ -1,0 +1,5 @@
+grant {
+  // needed to do crazy reflection
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.net.NetPermission  "getProxySelector";
+};

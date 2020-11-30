@@ -10,6 +10,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -149,6 +151,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
   }
 
   private static class ExampleRescorer implements Rescorer {
+
     private static final ExampleRescorer INSTANCE = new ExampleRescorer();
 
     @Override
@@ -165,6 +168,8 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
       ExampleRescoreContext context = (ExampleRescoreContext) rescoreContext;
       System.out.println(context.paramters);
+      DiscoveryClient.getScore();
+
 //      int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());
 //      for (int i = 0; i < end; i++) {
 //        topDocs.scoreDocs[i].score *= context.factor;
