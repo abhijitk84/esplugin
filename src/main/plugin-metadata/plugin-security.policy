@@ -2,4 +2,7 @@ grant {
   // needed to do crazy reflection
   permission java.lang.RuntimePermission "getClassLoader";
   permission java.net.NetPermission  "getProxySelector";
+  permission java.net.SocketPermission "*", "accept,connect,resolve";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

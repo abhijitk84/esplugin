@@ -1,22 +1,21 @@
 package com.esplugins.plugin.rescorer;
 
 import com.codahale.metrics.MetricRegistry;
-import com.hystrix.configurator.config.HystrixConfig;
-import com.hystrix.configurator.core.HystrixConfigurationFactory;
-import com.phonepe.dataplatform.yggdrasil.YggdrasilSetup;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.platform.http.Endpoint;
 import com.phonepe.platform.http.HttpClientConfiguration;
+import com.phonepe.platform.http.OkHttpUtils;
 import com.phonepe.platform.http.SSLFactory;
 import com.phonepe.platform.http.ServiceEndpointProvider;
 import com.phonepe.platform.http.StaticServiceEndpointProvider;
-import com.raskasa.metrics.okhttp.InstrumentedOkHttpClients;
-import io.appform.core.hystrix.CommandFactory;
 import java.net.Proxy;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.HostnameVerifier;
 import okhttp3.Authenticator;
@@ -46,10 +45,10 @@ public class DiscoveryClient extends AbstractLifecycleComponent {
     this.settings = settings;
     HttpClientConfiguration httpClientConfiguration = HttpClientConfiguration.builder()
         .connections(10)
-        .host("discovery.stg.treafik.com")
+        .host("samsara_v2.traefik.stg.phonepe.nb6")
         .environment("prod")
         .idleTimeOutSeconds(10)
-        .opTimeoutMs(2)
+        .opTimeoutMs(200)
         .secure(false)
         .port(80)
         .build();
@@ -126,38 +125,47 @@ public class DiscoveryClient extends AbstractLifecycleComponent {
 
   }
 
-  public static void getScore(){
+  public static  Map<String, Map<String,Float>> getScore(List<String> ids){
       Endpoint endpoint = serviceEndpointProvider.endpoint().get();
       try {
 //        HystrixConfig hystrixConfig = new HystrixConfig();
 //        HystrixConfigurationFactory.init(hystrixConfig);
 
-        List<String> appUniqueIds = new ArrayList<>();
-        appUniqueIds.add("tuytu");
-        appUniqueIds.add("87878");
+//        List<String> appUniqueIds = new ArrayList<>();
+//        appUniqueIds.add("tuytu");
+//        appUniqueIds.add("87878");
+        Map<String,Object> map = new HashMap<>();
+        map.put("ids",ids);
         ObjectMapper objectMapper = new ObjectMapper();
         RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"),
-            objectMapper.writeValueAsString(appUniqueIds));
+            objectMapper.writeValueAsString(map));
         System.out.println(client != null);
 //        Response response = CommandFactory.<Response>create(
 //            DiscoveryClient.class.getSimpleName(), "getApp").executor(() -> {
 
-          HttpUrl url = endpoint.url("/v1/internal/apps/ingest");
+          HttpUrl url = endpoint.url("/v1/housekeeping/score");
 
-        Response response = client.newCall(new Request.Builder()
+        Response response =  ClientSecurityManager.doPrivilegedException(()->client.newCall(new Request.Builder()
               .url(url)
               .post(requestBody)
-              .build()).execute();
+              .build()).execute());
 
        // }).execute();
 
         if (!response.isSuccessful()) {
           System.out.println(response.code());
+        }else {
+          String body = OkHttpUtils.bodyString(response);
+          TypeReference<HashMap<String, Map<String,Float>>> typeRef
+              = new TypeReference<HashMap<String, Map<String,Float>>>() {};
+          Map<String, Map<String,Float>> scores =  ClientSecurityManager.doPrivilegedException(()->objectMapper.readValue(body,typeRef));
+          return scores;
         }
 
       } catch (Exception e) {
         e.printStackTrace();
       }
+      return null;
     }
 
 }

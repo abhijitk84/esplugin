@@ -1,6 +1,10 @@
 package com.esplugins.plugin.rescorer;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.document.Document;
@@ -10,7 +14,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -18,7 +21,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -158,17 +160,26 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
       public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
       System.out.println("Coming here");
       ScoreDoc[] scoreDocs = topDocs.scoreDocs;
+      List<String> ids = new ArrayList<>();
+      Map<Integer,String> map = new HashMap<>();
       for(ScoreDoc scoreDoc : scoreDocs){
         Set<String> names =  new HashSet<>();
         names.add("id");
         Document document = searcher.doc(scoreDoc.doc,names);
-        System.out.println();
+        System.out.println(scoreDoc.score);
+        String id = new String(document.getField("id").binaryValue().bytes);
+        ids.add(id);
+        map.put(scoreDoc.doc,id);
         System.out.println(new String(document.getField("id").binaryValue().bytes));
       }
 
       ExampleRescoreContext context = (ExampleRescoreContext) rescoreContext;
       System.out.println(context.paramters);
-      DiscoveryClient.getScore();
+      Map<String,Map<String,Float>> scores = DiscoveryClient.getScore(ids);
+      for(ScoreDoc scoreDoc: scoreDocs){
+        Map<String,Float> score = scores.getOrDefault(map.getOrDefault(scoreDoc.doc,"MA"),new HashMap<>());
+        scoreDoc.score = scoreDoc.score + score.getOrDefault("t",0f) ;
+      }
 
 //      int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());
 //      for (int i = 0; i < end; i++) {
@@ -216,16 +227,16 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 //        }
 //      }
 //      // Sort by score descending, then docID ascending, just like lucene's QueryRescorer
-//      Arrays.sort(topDocs.scoreDocs, (a, b) -> {
-//        if (a.score > b.score) {
-//          return -1;
-//        }
-//        if (a.score < b.score) {
-//          return 1;
-//        }
-//        // Safe because doc ids >= 0
-//        return a.doc - b.doc;
-//      });
+      Arrays.sort(topDocs.scoreDocs, (a, b) -> {
+        if (a.score > b.score) {
+          return -1;
+        }
+        if (a.score < b.score) {
+          return 1;
+        }
+        // Safe because doc ids >= 0
+        return a.doc - b.doc;
+      });
       return topDocs;
     }
 
