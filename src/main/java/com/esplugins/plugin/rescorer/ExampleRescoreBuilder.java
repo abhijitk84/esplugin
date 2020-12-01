@@ -7,6 +7,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -43,6 +45,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
   private final float factor;
   private final String factorField;
   private final Map<String,Object> parameter;
+  private static final Log logger = LogFactory.getLog(ExampleRescoreBuilder.class);
 
   public ExampleRescoreBuilder(float factor, @Nullable String factorField,@Nullable Map<String,Object> parameter) {
     System.out.println("Coming here1");
@@ -104,6 +107,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
   @Override
   public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+
 //    IndexFieldData<?> factorField =
 //        this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
     return new ExampleRescoreContext(windowSize, factor, null,parameter);
@@ -158,7 +162,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
     @Override
       public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
-      System.out.println("Coming here");
+      logger.error("checking here7");
       ScoreDoc[] scoreDocs = topDocs.scoreDocs;
       List<String> ids = new ArrayList<>();
       Map<Integer,String> map = new HashMap<>();
