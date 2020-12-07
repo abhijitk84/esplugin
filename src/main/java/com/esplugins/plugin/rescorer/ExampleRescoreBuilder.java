@@ -7,6 +7,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.lucene.document.Document;
@@ -14,17 +17,29 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetRequest.Item;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportMultiGetAction;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -156,9 +171,32 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     }
   }
 
-  private static class ExampleRescorer implements Rescorer {
+  public static class Result implements Callable<MultiGetResponse>{
 
-    private static final ExampleRescorer INSTANCE = new ExampleRescorer();
+    private MultiGetResponse multiGetItemResponses;
+
+    public Result(MultiGetResponse multiGetItemResponses){
+      this.multiGetItemResponses = multiGetItemResponses;
+    }
+
+    @Override
+    public MultiGetResponse call(){
+      return multiGetItemResponses;
+    }
+  }
+  public static class ExampleRescorer extends AbstractLifecycleComponent implements Rescorer {
+
+    private static  ExampleRescorer INSTANCE;
+
+    private TransportMultiGetAction transportMultiGetAction;
+
+    @Inject
+    public ExampleRescorer(Settings settings, TransportMultiGetAction multiGetAction){
+      INSTANCE = this;
+      transportMultiGetAction = multiGetAction;
+      System.out.println("in rescorer construct");
+    }
+
 
     @Override
       public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
@@ -170,20 +208,52 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         Set<String> names =  new HashSet<>();
         names.add("id");
         Document document = searcher.doc(scoreDoc.doc,names);
-        System.out.println(scoreDoc.score);
         String id = new String(document.getField("id").binaryValue().bytes);
         ids.add(id);
         map.put(scoreDoc.doc,id);
-        System.out.println(new String(document.getField("id").binaryValue().bytes));
       }
 
+      MultiGetRequest multiGetRequest = new MultiGetRequest();
+      MultiGetRequest.Item item = new Item("discovery.inapp.appentity","treeboinapp");
+      item.storedFields("score");
+      item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+      item.versionType(VersionType.INTERNAL);
+      multiGetRequest.add(item);
+      multiGetRequest.preference("_only_local");
+     // CheckedConsumer checkedConsumer = Object::notify;
+      CompletableFuture completableFuture = new CompletableFuture<MultiGetResponse>();
+      ActionListener actionListener = ActionListener.wrap(completableFuture::complete,completableFuture::completeExceptionally);
+      transportMultiGetAction.execute(multiGetRequest, actionListener
+//          new ActionListener<MultiGetResponse>() {
+//        @Override
+//        public void onResponse(MultiGetResponse multiGetItemResponses) {
+//          GetResponse getResponse =  multiGetItemResponses.getResponses()[0].getResponse();
+//          System.out.println(getResponse.getField("score"));
+//          System.out.println(multiGetItemResponses.getResponses().length);
+//        //  Future future = new Result(multiGetItemResponses);
+//        }
+//
+//        @Override
+//        public void onFailure(Exception e) {
+//           e.printStackTrace();
+//        }
+      );
+
+      try {
+        MultiGetResponse multiGetItemResponses = (MultiGetResponse)completableFuture.get();
+        GetResponse getResponse =  multiGetItemResponses.getResponses()[0].getResponse();
+          System.out.println(getResponse.getField("score"));
+          System.out.println(multiGetItemResponses.getResponses().length);
+      }catch (Exception e){
+        e.printStackTrace();
+      }
       ExampleRescoreContext context = (ExampleRescoreContext) rescoreContext;
-      System.out.println(context.paramters);
       Map<String,Map<String,Float>> scores = DiscoveryClient.getScore(ids);
       for(ScoreDoc scoreDoc: scoreDocs){
         Map<String,Float> score = scores.getOrDefault(map.getOrDefault(scoreDoc.doc,"MA"),new HashMap<>());
         scoreDoc.score = scoreDoc.score + score.getOrDefault("t",0f) ;
       }
+
 
 //      int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());
 //      for (int i = 0; i < end; i++) {
@@ -242,6 +312,21 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         return a.doc - b.doc;
       });
       return topDocs;
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+
     }
 
     @Override

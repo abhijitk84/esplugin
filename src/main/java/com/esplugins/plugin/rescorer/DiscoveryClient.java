@@ -33,8 +33,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.elasticsearch.search.rescore.Rescorer;
 
-public class DiscoveryClient extends AbstractLifecycleComponent {
+public class DiscoveryClient extends AbstractLifecycleComponent  {
 
   private Settings settings;
   private static ServiceEndpointProvider serviceEndpointProvider;

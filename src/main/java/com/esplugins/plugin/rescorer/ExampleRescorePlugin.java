@@ -23,6 +23,7 @@ public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
   public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
     Collection<Class<? extends LifecycleComponent>> collections = new ArrayList<>();
     collections.add(DiscoveryClient.class);
+    collections.add(ExampleRescoreBuilder.ExampleRescorer.class);
     return collections;
   }
 }
