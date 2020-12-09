@@ -1,7 +1,12 @@
 package com.esplugins.plugin.rescorer;
 
+import com.esplugins.plugin.rescorer.utils.SecurityUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -13,6 +18,7 @@ import java.util.concurrent.Future;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -26,7 +32,9 @@ import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,8 +45,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
@@ -122,10 +134,11 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
   @Override
   public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
-
+//
 //    IndexFieldData<?> factorField =
 //        this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
-    return new ExampleRescoreContext(windowSize, factor, null,parameter);
+
+    return new ExampleRescoreContext(windowSize, factor, null,parameter,context);
   }
 
   @Override
@@ -162,28 +175,17 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     @Nullable
     private final IndexFieldData<?> factorField;
     private final Map<String,Object> paramters;
+    private QueryShardContext queryShardContext;
 
-    ExampleRescoreContext(int windowSize, float factor, @Nullable IndexFieldData<?> factorField,@Nullable Map<String,Object> paramters) {
+    ExampleRescoreContext(int windowSize, float factor, @Nullable IndexFieldData<?> factorField,@Nullable Map<String,Object> paramters,QueryShardContext queryShardContext) {
       super(windowSize, ExampleRescorer.INSTANCE);
       this.factor = factor;
       this.factorField = factorField;
       this.paramters = paramters;
+      this.queryShardContext = queryShardContext;
     }
   }
 
-  public static class Result implements Callable<MultiGetResponse>{
-
-    private MultiGetResponse multiGetItemResponses;
-
-    public Result(MultiGetResponse multiGetItemResponses){
-      this.multiGetItemResponses = multiGetItemResponses;
-    }
-
-    @Override
-    public MultiGetResponse call(){
-      return multiGetItemResponses;
-    }
-  }
   public static class ExampleRescorer extends AbstractLifecycleComponent implements Rescorer {
 
     private static  ExampleRescorer INSTANCE;
@@ -199,11 +201,12 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
 
     @Override
-      public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
+    public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
       logger.error("checking here7");
       ScoreDoc[] scoreDocs = topDocs.scoreDocs;
       List<String> ids = new ArrayList<>();
       Map<Integer,String> map = new HashMap<>();
+      List<SearchHit> searchHits = new ArrayList<>();
       for(ScoreDoc scoreDoc : scoreDocs){
         Set<String> names =  new HashSet<>();
         names.add("id");
@@ -211,19 +214,22 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         String id = new String(document.getField("id").binaryValue().bytes);
         ids.add(id);
         map.put(scoreDoc.doc,id);
+        SearchHit searchHit = new SearchHit(scoreDoc.doc);
+        searchHits.add(searchHit);
       }
+
 
       MultiGetRequest multiGetRequest = new MultiGetRequest();
       MultiGetRequest.Item item = new Item("discovery.inapp.appentity","treeboinapp");
-      item.storedFields("score");
+      item.storedFields("lpopularity");
       item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
       item.versionType(VersionType.INTERNAL);
       multiGetRequest.add(item);
-      multiGetRequest.preference("_only_local");
+      multiGetRequest.preference("_local");
      // CheckedConsumer checkedConsumer = Object::notify;
       CompletableFuture completableFuture = new CompletableFuture<MultiGetResponse>();
       ActionListener actionListener = ActionListener.wrap(completableFuture::complete,completableFuture::completeExceptionally);
-      transportMultiGetAction.execute(multiGetRequest, actionListener
+      transportMultiGetAction.execute(multiGetRequest, actionListener);
 //          new ActionListener<MultiGetResponse>() {
 //        @Override
 //        public void onResponse(MultiGetResponse multiGetItemResponses) {
@@ -237,22 +243,54 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 //        public void onFailure(Exception e) {
 //           e.printStackTrace();
 //        }
-      );
+
 
       try {
         MultiGetResponse multiGetItemResponses = (MultiGetResponse)completableFuture.get();
         GetResponse getResponse =  multiGetItemResponses.getResponses()[0].getResponse();
-          System.out.println(getResponse.getField("score"));
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String,Float> map1 = SecurityUtils
+            .doPrivilegedException(()->objectMapper.readValue(((BytesArray)getResponse.getField("lpopularity").getValue()).array(),
+                new TypeReference<Map<String,Float>>(){}));
+        System.out.println(map1.get("56000011213"));
           System.out.println(multiGetItemResponses.getResponses().length);
       }catch (Exception e){
         e.printStackTrace();
       }
       ExampleRescoreContext context = (ExampleRescoreContext) rescoreContext;
-      Map<String,Map<String,Float>> scores = DiscoveryClient.getScore(ids);
-      for(ScoreDoc scoreDoc: scoreDocs){
-        Map<String,Float> score = scores.getOrDefault(map.getOrDefault(scoreDoc.doc,"MA"),new HashMap<>());
-        scoreDoc.score = scoreDoc.score + score.getOrDefault("t",0f) ;
+      QueryShardContext queryShardContext  = context.queryShardContext;
+      MappedFieldType  mappedFieldType = queryShardContext.fieldMapper("score");
+      FieldAndFormat fieldAndFormat = new FieldAndFormat("score",null);
+      FieldAndFormat fieldAndFormat1 = new FieldAndFormat("_id",null);
+      try{
+        IndexSearcher.LeafSlice[] leafSlices = searcher.getSlices();
+        List<LeafReaderContext> leafReaderContexts = new ArrayList<>();
+        leafReaderContexts.addAll(searcher.getTopReaderContext().leaves());
+         DocValueReader docValueReader = new DocValueReader();
+         SearchHit[] searchHits1 = searchHits.toArray(new SearchHit[0]);
+         List<FieldAndFormat> fieldAndFormats = new ArrayList<>();
+         fieldAndFormats.add(fieldAndFormat);
+         fieldAndFormats.add(fieldAndFormat1);
+         docValueReader.hitsExecute(fieldAndFormats,
+             searchHits1, queryShardContext.getMapperService(),leafReaderContexts,queryShardContext.lookup().doc());
+         for(int i =0;i< searchHits1.length;i++){
+           System.out.println(searchHits1[i].docId());
+           Map<String, DocumentField> maps = searchHits1[i].getFields();
+           System.out.println(maps.get("_id"));
+           System.out.println(maps.get("score"));
+         }
+      }catch (Exception e){
+          System.out.println("in docValue");
+          e.printStackTrace();
       }
+//      if (mappedFieldType != null){
+//        DocValueFieldsContext
+////      }
+//      Map<String,Map<String,Float>> scores = DiscoveryClient.getScore(ids);
+//      for(ScoreDoc scoreDoc: scoreDocs){
+//        Map<String,Float> score = scores.getOrDefault(map.getOrDefault(scoreDoc.doc,"MA"),new HashMap<>());
+//        scoreDoc.score = scoreDoc.score + score.getOrDefault("t",0f) ;
+//      }
 
 
 //      int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());

@@ -1,6 +1,7 @@
 package com.esplugins.plugin.rescorer;
 
 import com.codahale.metrics.MetricRegistry;
+import com.esplugins.plugin.rescorer.utils.SecurityUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.platform.http.Endpoint;
 import com.phonepe.platform.http.HttpClientConfiguration;
@@ -110,20 +111,7 @@ public class DiscoveryClient extends AbstractLifecycleComponent  {
       clientBuilder.sslSocketFactory(sslFactory.getSslSocketFactory(), sslFactory.getX509TrustManager());
     }
 
-    return  ClientSecurityManager.doPrivilegedException(()-> clientBuilder.build());
-  }
-
-  static class ClientSecurityManager {
-
-    static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws Exception {
-      SpecialPermission.check();
-      try {
-        return AccessController.doPrivileged(operation);
-      } catch (PrivilegedActionException e) {
-        throw (Exception) e.getCause();
-      }
-    }
-
+    return  SecurityUtils.doPrivilegedException(()-> clientBuilder.build());
   }
 
   public static  Map<String, Map<String,Float>> getScore(List<String> ids){
@@ -146,7 +134,7 @@ public class DiscoveryClient extends AbstractLifecycleComponent  {
 
           HttpUrl url = endpoint.url("/v1/housekeeping/score");
 
-        Response response =  ClientSecurityManager.doPrivilegedException(()->client.newCall(new Request.Builder()
+        Response response =  SecurityUtils.doPrivilegedException(()->client.newCall(new Request.Builder()
               .url(url)
               .post(requestBody)
               .build()).execute());
@@ -159,7 +147,7 @@ public class DiscoveryClient extends AbstractLifecycleComponent  {
           String body = OkHttpUtils.bodyString(response);
           TypeReference<HashMap<String, Map<String,Float>>> typeRef
               = new TypeReference<HashMap<String, Map<String,Float>>>() {};
-          Map<String, Map<String,Float>> scores =  ClientSecurityManager.doPrivilegedException(()->objectMapper.readValue(body,typeRef));
+          Map<String, Map<String,Float>> scores =  SecurityUtils.doPrivilegedException(()->objectMapper.readValue(body,typeRef));
           return scores;
         }
 
