@@ -1,6 +1,7 @@
 package com.esplugins.plugin.rescorer;
 
 
+import com.esplugins.plugin.metrics.RiemannMetricCollector;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -22,7 +23,7 @@ public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
   @Override
   public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
     Collection<Class<? extends LifecycleComponent>> collections = new ArrayList<>();
-    collections.add(DiscoveryClient.class);
+    collections.add(RiemannMetricCollector.class);
     collections.add(ExampleRescoreBuilder.ExampleRescorer.class);
     return collections;
   }

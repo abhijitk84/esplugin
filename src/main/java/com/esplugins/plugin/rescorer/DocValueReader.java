@@ -9,8 +9,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -32,7 +32,8 @@ import org.elasticsearch.search.lookup.DocLookup;
 
 public class DocValueReader {
   private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-  private static final Log logger = LogFactory.getLog(ExampleRescoreBuilder.class);
+  private final Logger logger = LogManager.getLogger(getClass());
+
 
   public void hitsExecute(List<FieldAndFormat> fields, SearchHit[] hits,
       MapperService mapperService,

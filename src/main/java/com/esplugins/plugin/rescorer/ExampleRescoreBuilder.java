@@ -1,8 +1,12 @@
 package com.esplugins.plugin.rescorer;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.esplugins.plugin.rescorer.utils.SecurityUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.appform.functionmetrics.MonitoredFunction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,8 +19,8 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
@@ -49,7 +53,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -72,13 +75,31 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
   private final float factor;
   private final String factorField;
   private final Map<String,Object> parameter;
-  private static final Log logger = LogFactory.getLog(ExampleRescoreBuilder.class);
+  private static final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate("metrics-registry");
+  private static  Meter totalEventRateMeter ;
+  private static final Logger logger = LogManager.getLogger(ExampleRescoreBuilder.class.getName());
 
   public ExampleRescoreBuilder(float factor, @Nullable String factorField,@Nullable Map<String,Object> parameter) {
     System.out.println("Coming here1");
     this.factor = factor;
     this.factorField = factorField;
     this.parameter = parameter;
+    try {
+      totalEventRateMeter = SecurityUtils.doPrivilegedException(this::getTotalEventRateMeter);
+    }catch (Exception e){
+      e.printStackTrace();
+    }
+
+  }
+
+  private Meter getTotalEventRateMeter(){
+    try {
+      return  metricRegistry.meter(
+          MetricRegistry.name("test", "total-event-set-rate"));
+    }catch (Exception e){
+      e.printStackTrace();
+      return null;
+    }
   }
 
   public ExampleRescoreBuilder(StreamInput in) throws IOException {
@@ -199,10 +220,24 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
       System.out.println("in rescorer construct");
     }
 
+    @MonitoredFunction
+    private void collectMetric(){
+         System.out.println("cominng in collect metric");
+    }
 
     @Override
     public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
       logger.error("checking here7");
+      try {
+        SecurityUtils.doPrivilegedException(() -> {
+          totalEventRateMeter.mark(10);
+          return 1;
+        });
+      }catch (Exception e){
+        e.printStackTrace();
+      }
+      System.out.println("cjajkjd");
+      totalEventRateMeter.mark(101);
       ScoreDoc[] scoreDocs = topDocs.scoreDocs;
       List<String> ids = new ArrayList<>();
       Map<Integer,String> map = new HashMap<>();
@@ -217,7 +252,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         SearchHit searchHit = new SearchHit(scoreDoc.doc);
         searchHits.add(searchHit);
       }
-
+      collectMetric();
 
       MultiGetRequest multiGetRequest = new MultiGetRequest();
       MultiGetRequest.Item item = new Item("discovery.inapp.appentity","treeboinapp");
