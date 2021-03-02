@@ -24,7 +24,7 @@
         <exclude>com.github.stephenc.jcip:jcip-annotations</exclude>
         <exclude>com.google.code.findbugs</exclude>
         <exclude>io.github.openfeign</exclude>
-        <exclude>org.aspectj</exclude>
+        <exclude>org.aspectj:aspectjrt</exclude>
         <exclude>log4j</exclude>
         <exclude>com.fasterxml.jackson.core:jackson-core</exclude>
       </excludes>

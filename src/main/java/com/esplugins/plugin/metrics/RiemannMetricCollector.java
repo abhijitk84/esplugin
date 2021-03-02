@@ -9,6 +9,7 @@ import com.codahale.metrics.riemann.DropWizardRiemannReporter;
 import com.codahale.metrics.riemann.Riemann;
 import com.esplugins.plugin.rescorer.utils.SecurityUtils;
 import com.google.common.collect.Maps;
+import io.appform.functionmetrics.FunctionMetricsManager;
 import io.riemann.riemann.client.IRiemannClient;
 import io.riemann.riemann.client.RiemannBatchClient;
 import io.riemann.riemann.client.RiemannClient;
@@ -42,6 +43,7 @@ public class RiemannMetricCollector extends AbstractLifecycleComponent {
     IRiemannClient client = getClient("stg-riemannapp001.phonepe.nb6", 5555,10);
     riemann = new Riemann(client);
     MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate("metrics-registry");
+    FunctionMetricsManager.initialize("metrics", metricRegistry);
     reporter = DropWizardRiemannReporter
         .forRegistry(metricRegistry)
         .prefixedWith("elastic-search")
