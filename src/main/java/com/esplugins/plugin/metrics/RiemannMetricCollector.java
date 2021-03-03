@@ -52,16 +52,10 @@ public class RiemannMetricCollector extends AbstractLifecycleComponent {
   }
 
   private void startRiemannWithPrivileged() {
-    try {
       SecurityUtils.doPrivilegedException(() -> {
         reporter.start(30, TimeUnit.SECONDS);
         return 1;
       });
-    } catch (Exception e) {
-      log.error("Riemann start failed with exception ", e);
-      throw new RuntimeException(e);
-    }
-
   }
 
   @Override
