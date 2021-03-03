@@ -8,7 +8,7 @@ import com.codahale.metrics.SharedMetricRegistries;
 import com.codahale.metrics.riemann.DropWizardRiemannReporter;
 import com.codahale.metrics.riemann.Riemann;
 import com.esplugins.plugin.rescorer.utils.SecurityUtils;
-import com.google.common.collect.Maps;
+import com.esplugins.plugin.settings.MetricConfig;
 import io.appform.functionmetrics.FunctionMetricsManager;
 import io.riemann.riemann.client.IRiemannClient;
 import io.riemann.riemann.client.RiemannBatchClient;
@@ -16,7 +16,6 @@ import io.riemann.riemann.client.RiemannClient;
 import io.riemann.riemann.client.UnsupportedJVMException;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -32,23 +31,27 @@ public class RiemannMetricCollector extends AbstractLifecycleComponent {
   private Riemann riemann;
   private static final Logger log = LoggerFactory.getLogger(RiemannMetricCollector.class);
 
-
   @Inject
   public RiemannMetricCollector(Settings settings) throws Exception {
     String host = System.getenv("HOST");
     if (host == null) {
       host = InetAddress.getLocalHost().getHostName();
     }
-    log.error("Testinng slf4j log");
-    IRiemannClient client = getClient("stg-riemannapp001.phonepe.nb6", 5555,10);
+    IRiemannClient client = getClient(settings.get(MetricConfig.RIEMANN_HOST)
+        , settings.getAsInt(MetricConfig.RAEANN_PORT,5555),10);
+   // riemann = new Riemann(settings.get(MetricConfig.RIEMANN_HOST),
+     //   settings.getAsInt(MetricConfig.RAEANN_PORT,5555));
     riemann = new Riemann(client);
     MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate("metrics-registry");
     FunctionMetricsManager.initialize("metrics", metricRegistry);
     reporter = DropWizardRiemannReporter
         .forRegistry(metricRegistry)
-        .prefixedWith("elastic-search")
+        .prefixedWith(settings.get(MetricConfig.RIEMANN_PREFIX,
+            "phonepe.stage.discovery.elastic-search"))
         .useSeparator(".")
         .localHost(host)
+        .tags(settings.getAsList(MetricConfig.RIEMANN_TAGS))
+        .attributes(MetricConfig.RIEMANN_ATTRIBUTE_SETTING.getAsMap(settings))
         .convertDurationsTo(TimeUnit.MILLISECONDS)
         .convertRatesTo(TimeUnit.SECONDS)
         .build(riemann);
@@ -59,11 +62,12 @@ public class RiemannMetricCollector extends AbstractLifecycleComponent {
         TimeUnit.SECONDS,
         TimeUnit.MILLISECONDS,
         null,
-       "phonepe.stage.elastic-search",
+        settings.get(MetricConfig.RIEMANN_PREFIX,
+            "phonepe.stage.discovery.elastic-search"),
         ".",
           host,
-        new ArrayList<>(),
-        Maps.newHashMap(),
+        settings.getAsList(MetricConfig.RIEMANN_TAGS),
+        MetricConfig.RIEMANN_ATTRIBUTE_SETTING.getAsMap(settings),
         MetricFilter.ALL,
         client);
 
