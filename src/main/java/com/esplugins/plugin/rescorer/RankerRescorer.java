@@ -6,10 +6,13 @@ import com.esplugins.plugin.models.FieldInfo;
 import com.esplugins.plugin.models.Fields;
 import com.esplugins.plugin.models.RankerContext;
 import com.esplugins.plugin.models.Source;
+import com.esplugins.plugin.rescorer.utils.CommonUtils;
 import com.esplugins.plugin.rescorer.utils.FieldUtils;
 import com.esplugins.plugin.rescorer.utils.SecurityUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
+import com.google.common.collect.Maps;
 import io.appform.functionmetrics.MonitoredFunction;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.lucene.analysis.CharArrayMap.EntrySet;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
@@ -61,11 +66,6 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
     transportMultiGetAction = multiGetAction;
   }
 
-  @MonitoredFunction
-  private void collectMetric(){
-    System.out.println("cominng in collect metric");
-  }
-
 
   public static Rescorer getInStance(){
     return INSTANCE;
@@ -79,14 +79,16 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
       return topDocs;
     }
     List<ScoreDoc> scoreDocs = new ArrayList<>();
+
     for(int index =0;index < windowSize;index++){
       scoreDocs.add(topDocs.scoreDocs[index]);
     }
-
+    Map<String,Map<String,Float>> scoreMap = Maps.newHashMap();
     getFieldFromPrimaryIndex(rankerContext.getFields(),
         rankerContext.getQueryShardContext(),
         scoreDocs,
-        searcher);
+        searcher,
+        scoreMap);
 
 //    System.out.println("cjajkjd");
 //  //  totalEventRateMeter.mark(101);
@@ -106,30 +108,31 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
 //    }
 //    collectMetric();
 //
-//    MultiGetRequest multiGetRequest = new MultiGetRequest();
-//    MultiGetRequest.Item item = new Item("discovery.inapp.appentity","treeboinapp");
-//    item.storedFields("lpopularity");
-//    item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-//    item.versionType(VersionType.INTERNAL);
-//    multiGetRequest.add(item);
-//    multiGetRequest.preference("_local");
-//    // CheckedConsumer checkedConsumer = Object::notify;
-//    CompletableFuture completableFuture = new CompletableFuture<MultiGetResponse>();
-//    ActionListener actionListener = ActionListener.wrap(completableFuture::complete,completableFuture::completeExceptionally);
-//    transportMultiGetAction.execute(multiGetRequest, actionListener);
-//          new ActionListener<MultiGetResponse>() {
-//        @Override
-//        public void onResponse(MultiGetResponse multiGetItemResponses) {
-//          GetResponse getResponse =  multiGetItemResponses.getResponses()[0].getResponse();
-//          System.out.println(getResponse.getField("score"));
-//          System.out.println(multiGetItemResponses.getResponses().length);
-//        //  Future future = new Result(multiGetItemResponses);
-//        }
-//
-//        @Override
-//        public void onFailure(Exception e) {
-//           e.printStackTrace();
-//        }
+    MultiGetRequest multiGetRequest = new MultiGetRequest();
+    MultiGetRequest.Item item = new Item("discovery.inapp.appentity","treeboinapp");
+    item.storedFields("lpopularity");
+    item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+    item.versionType(VersionType.INTERNAL);
+    multiGetRequest.add(item);
+    multiGetRequest.preference("_local");
+    // CheckedConsumer checkedConsumer = Object::notify;
+    CompletableFuture completableFuture = new CompletableFuture<MultiGetResponse>();
+    ActionListener actionListener = ActionListener.wrap(completableFuture::complete,completableFuture::completeExceptionally);
+    transportMultiGetAction.execute(multiGetRequest, actionListener);
+          new ActionListener<MultiGetResponse>() {
+            @Override
+            public void onResponse(MultiGetResponse multiGetItemResponses) {
+              GetResponse getResponse = multiGetItemResponses.getResponses()[0].getResponse();
+              System.out.println(getResponse.getField("score"));
+              System.out.println(multiGetItemResponses.getResponses().length);
+              //  Future future = new Result(multiGetItemResponses);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+              e.printStackTrace();
+            }
+          }
 
     try {
         System.out.println(rankerContext.getWindowSize());
@@ -280,8 +283,8 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
   }
 
   @MonitoredFunction
-  private void getFieldFromPrimaryIndex(Fields fields,QueryShardContext queryShardContext,
-      List<ScoreDoc> scoreDocs, IndexSearcher searcher) throws IOException{
+  private Map<Integer,String> getFieldFromPrimaryIndex(Fields fields,QueryShardContext queryShardContext,
+      List<ScoreDoc> scoreDocs, IndexSearcher searcher,Map<String,Map<String,Float>> scoreMap) throws IOException{
       List<LeafReaderContext> leafReaderContexts = new ArrayList<>();
       leafReaderContexts.addAll(searcher.getTopReaderContext().leaves());
       DocValueReader docValueReader = new DocValueReader();
@@ -298,14 +301,28 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
           queryShardContext.getMapperService(),
           leafReaderContexts,queryShardContext.lookup().doc()
       );
+      Map<Integer,String> idMap = Maps.newHashMap();
 
-      for(int i =0;i< searchHits.size();i++){
-        System.out.println(searchHits.get(i).docId());
-        Map<String, DocumentField> maps = searchHits.get(i).getFields();
-        System.out.println(maps.get("_id"));
-        System.out.println(maps.get("score"));
+      for(int index =0;index < searchHits.size();index++){
+        Map<String, DocumentField> maps = searchHits.get(index).getFields();
+        String uniqueIdentifier = maps.get("_id").getValue().toString();
+        idMap.put(searchHits.get(index).docId(),uniqueIdentifier);
+        populateScore(Source.PRIMARY_INDEX,uniqueIdentifier,maps,scoreMap);
       }
+      return idMap;
   }
+
+  private void populateScore(Source source, String uniqueIdentifier,
+      Map<String, DocumentField> documentMap, Map<String,Map<String,Float>> scoreMap){
+     Map<String,Float> scores = scoreMap.getOrDefault(uniqueIdentifier,new HashMap<>());
+     for (Map.Entry<String,DocumentField> entrySet:documentMap.entrySet()){
+       if(!"_id".equalsIgnoreCase(entrySet.getKey())) {
+         scores.put(CommonUtils.concat(entrySet.getKey(), source.name()),
+             entrySet.getValue().getValue());
+       }
+     }
+  }
+
 
   private List<FieldAndFormat> getFieldFormat(List<FieldInfo> fieldInfos){
      List<FieldAndFormat> fieldAndFormats = fieldInfos.stream()
