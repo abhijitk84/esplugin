@@ -28,11 +28,6 @@
         <exclude>log4j</exclude>
         <exclude>com.fasterxml.jackson.core:jackson-core</exclude>
       </excludes>
-<!--      <includes>-->
-<!--        <include>-->
-<!--          com.phonepe.platform.http:http-client-->
-<!--        </include>-->
-<!--      </includes>-->
     </dependencySet>
   </dependencySets>
 </assembly>

@@ -15,19 +15,19 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 
-public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
+public class RankerPlugin extends Plugin implements SearchPlugin {
 
   @Override
   public List<RescorerSpec<?>> getRescorers() {
     return singletonList(
-        new RescorerSpec<>(ExampleRescoreBuilder.NAME, ExampleRescoreBuilder::new, ExampleRescoreBuilder::fromXContent));
+        new RescorerSpec<>(RankerBuilder.NAME, RankerBuilder::new, RankerBuilder::fromXContent));
   }
 
   @Override
   public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
     Collection<Class<? extends LifecycleComponent>> collections = new ArrayList<>();
     collections.add(RiemannMetricCollector.class);
-    collections.add(ExampleRescoreBuilder.ExampleRescorer.class);
+    collections.add(RankerRescorer.class);
     return collections;
   }
 
