@@ -28,17 +28,15 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   public static final String NAME = "rank";
   private static final Logger logger = LogManager.getLogger(RankerBuilder.class.getName());
   private static final ParseField IS_RANKING_ENABLE = new ParseField("is_ranking_enable");
-  private static final ParseField WINDOW_SIZE = new ParseField("window_size");
   private static final ParseField FIELDS = new ParseField("fields");
   private static final ParseField DATA = new ParseField("data");
   private static final ConstructingObjectParser<RankerBuilder, Void> PARSER = new ConstructingObjectParser<>(
       NAME,
-      args -> new RankerBuilder((boolean) args[0], (int) args[1], (Fields) args[2],
+      args -> new RankerBuilder((boolean) args[0], (Fields) args[2],
           (Map<String, Object>) args[3]));
 
   static {
     PARSER.declareBoolean(constructorArg(), IS_RANKING_ENABLE);
-    PARSER.declareInt(constructorArg(), WINDOW_SIZE);
     PARSER.declareField(optionalConstructorArg(), (parser, context) -> Fields.fromXContent(parser),
         FIELDS, ObjectParser.ValueType.OBJECT);
     PARSER.declareField(optionalConstructorArg(), XContentParser::map, DATA,
@@ -46,16 +44,13 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   }
 
   private final boolean isRankingEnable;
-  private final int windowSize;
   private final Fields fields;
   private final Map<String, Object> data;
 
   public RankerBuilder(boolean isRankingEnable,
-      int windowSize,
       @Nullable Fields fields,
       @Nullable Map<String, Object> data) {
     this.isRankingEnable = isRankingEnable;
-    this.windowSize = windowSize;
     this.fields = fields;
     this.data = data;
   }
@@ -63,7 +58,6 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   public RankerBuilder(StreamInput in) throws IOException {
     super(in);
     this.isRankingEnable = in.readBoolean();
-    this.windowSize = in.readInt();
     this.fields = (Fields) in.readGenericValue();
     this.data = in.readMap();
   }
@@ -75,7 +69,6 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   @Override
   protected void doWriteTo(StreamOutput out) throws IOException {
     out.writeBoolean(isRankingEnable);
-    out.writeInt(windowSize);
     out.writeGenericValue(fields);
     out.writeMap(data);
   }
@@ -93,7 +86,6 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   @Override
   protected void doXContent(XContentBuilder builder, Params params) throws IOException {
     builder.field(IS_RANKING_ENABLE.getPreferredName(), isRankingEnable);
-    builder.field(WINDOW_SIZE.getPreferredName(), windowSize);
     if (FIELDS != null) {
       builder.field(FIELDS.getPreferredName(), fields);
     }
@@ -103,7 +95,7 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   }
 
   @Override
-  public RescoreContext innerBuildContext(int size, QueryShardContext context) throws IOException {
+  public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
     return new RankerContext(isRankingEnable, windowSize, fields, data, context);
   }
 

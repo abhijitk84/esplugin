@@ -44,7 +44,6 @@ public class FieldInfo {
     this.idIdentifiers = idIdentifiers;
     this.name = name;
     this.weight = weight;
-
   }
 
   public static FieldInfo fromXContent(XContentParser parser) {
