@@ -3,7 +3,10 @@ package com.esplugins.plugin.rescorer;
 import static java.util.Collections.singletonList;
 
 import com.esplugins.plugin.models.FieldInfo;
+import com.esplugins.plugin.models.Fields;
 import com.esplugins.plugin.models.RankerContext;
+import com.esplugins.plugin.models.Source;
+import com.esplugins.plugin.rescorer.utils.FieldUtils;
 import com.esplugins.plugin.rescorer.utils.SecurityUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
@@ -69,17 +73,23 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
 
   @Override
   public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
-//    logger.error("checking here7");
-//    try {
-//      SecurityUtils.doPrivilegedException(() -> {
-//        totalEventRateMeter.mark(10);
-//        return 1;
-//      });
-//    }catch (Exception e){
-//      e.printStackTrace();
-//    }
+    RankerContext rankerContext = (RankerContext)rescoreContext;
+    int windowSize = Math.min(topDocs.scoreDocs.length,rankerContext.getWindowSize());
+    if(!rankerContext.isRankingEnable() || windowSize <= 0){
+      return topDocs;
+    }
+    List<ScoreDoc> scoreDocs = new ArrayList<>();
+    for(int index =0;index < windowSize;index++){
+      scoreDocs.add(topDocs.scoreDocs[index]);
+    }
+
+    getFieldFromPrimaryIndex(rankerContext.getFields(),
+        rankerContext.getQueryShardContext(),
+        scoreDocs,
+        searcher);
+
 //    System.out.println("cjajkjd");
-//    totalEventRateMeter.mark(101);
+//  //  totalEventRateMeter.mark(101);
 //    ScoreDoc[] scoreDocs = topDocs.scoreDocs;
 //    List<String> ids = new ArrayList<>();
 //    Map<Integer,String> map = new HashMap<>();
@@ -122,7 +132,6 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
 //        }
 
     try {
-        RankerContext rankerContext = (RankerContext) rescoreContext;
         System.out.println(rankerContext.getWindowSize());
         System.out.println(rankerContext.isRankingEnable());
         System.out.println(rankerContext.getData());
@@ -162,7 +171,7 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
 //      List<LeafReaderContext> leafReaderContexts = new ArrayList<>();
 //      leafReaderContexts.addAll(searcher.getTopReaderContext().leaves());
 //      DocValueReader docValueReader = new DocValueReader();
-//      SearchHit[] searchHits1 = searchHits.toArray(new SearchHit[0]);
+//      SearchHit[] searchHits1 = searchHits.toArray( new SearchHit[0]);
 //      List<FieldAndFormat> fieldAndFormats = new ArrayList<>();
 //      fieldAndFormats.add(fieldAndFormat);
 //      fieldAndFormats.add(fieldAndFormat1);
@@ -266,8 +275,44 @@ public  class RankerRescorer extends AbstractLifecycleComponent implements Resco
   public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
       Explanation sourceExplanation) throws IOException {
     RankerContext context = (RankerContext) rescoreContext;
-    // Note that this is inaccurate because it ignores factor field
-    return Explanation.match(context.getWindowSize(), "test", singletonList(sourceExplanation));
+    return Explanation.match(context.getWindowSize(), "Window size",
+        singletonList(sourceExplanation));
+  }
+
+  @MonitoredFunction
+  private void getFieldFromPrimaryIndex(Fields fields,QueryShardContext queryShardContext,
+      List<ScoreDoc> scoreDocs, IndexSearcher searcher) throws IOException{
+      List<LeafReaderContext> leafReaderContexts = new ArrayList<>();
+      leafReaderContexts.addAll(searcher.getTopReaderContext().leaves());
+      DocValueReader docValueReader = new DocValueReader();
+      List<FieldAndFormat> fieldAndFormats = getFieldFormat(FieldUtils.filterFieldInfoOnSource(
+          Source.PRIMARY_INDEX,
+          fields.getFieldInfos())
+      );
+      List<SearchHit> searchHits = scoreDocs.stream()
+          .map(scoreDoc -> new SearchHit(scoreDoc.doc))
+          .collect(Collectors.toList());
+
+      docValueReader.hitsExecute(fieldAndFormats,
+          searchHits.toArray( new SearchHit[0]),
+          queryShardContext.getMapperService(),
+          leafReaderContexts,queryShardContext.lookup().doc()
+      );
+
+      for(int i =0;i< searchHits.size();i++){
+        System.out.println(searchHits.get(i).docId());
+        Map<String, DocumentField> maps = searchHits.get(i).getFields();
+        System.out.println(maps.get("_id"));
+        System.out.println(maps.get("score"));
+      }
+  }
+
+  private List<FieldAndFormat> getFieldFormat(List<FieldInfo> fieldInfos){
+     List<FieldAndFormat> fieldAndFormats = fieldInfos.stream()
+        .map(fieldInfo -> new FieldAndFormat(fieldInfo.getName(), null))
+        .collect(Collectors.toList());
+     fieldAndFormats.add( new FieldAndFormat("_id",null));
+     return fieldAndFormats;
   }
 
 }
