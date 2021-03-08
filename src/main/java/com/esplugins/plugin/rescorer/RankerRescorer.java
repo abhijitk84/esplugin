@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rescore.RescoreContext;
