@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -45,10 +46,9 @@ import org.elasticsearch.search.rescore.Rescorer;
 
 public class RankerRescorer extends AbstractLifecycleComponent implements Rescorer {
 
-  private static RankerRescorer INSTANCE;
-
-  private TransportMultiGetAction transportMultiGetAction;
   private static final Logger log = LogManager.getLogger(RankerRescorer.class.getName());
+  private static RankerRescorer INSTANCE;
+  private TransportMultiGetAction transportMultiGetAction;
 
 
   @Inject
@@ -88,12 +88,12 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       getFieldFromSecondaryIndex(rankerContext.getFields(), entityIds, scoreMap);
       getFieldScoreFromRequest(rankerContext.getFields(), entityIds, scoreMap,
           rankerContext.getData());
-      computeFinalScore(idToEntityIdMap,scoreMap,scoreDocs,rankerContext.getFields().getFieldInfos());
+      computeFinalScore(idToEntityIdMap, scoreMap, scoreDocs,
+          rankerContext.getFields().getFieldInfos());
       sortTopDoc(topDocs);
-    }catch (Exception e){
-      log.error("excption occured while rescoring ",e);
+    } catch (Exception e) {
+      log.error("excption occured while rescoring ", e);
     }
-
 
     return topDocs;
   }
@@ -115,8 +115,7 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
 
   @Override
   public Explanation explain(int topLevelDocId, IndexSearcher searcher,
-      RescoreContext rescoreContext,
-      Explanation sourceExplanation) throws IOException {
+      RescoreContext rescoreContext, Explanation sourceExplanation) throws IOException {
     RankerContext context = (RankerContext) rescoreContext;
     return Explanation.match(context.getWindowSize(), "Window size",
         singletonList(sourceExplanation));
@@ -126,22 +125,27 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       Map<String, Map<String, Float>> scoreMap, List<ScoreDoc> scoreDocs,
       List<FieldInfo> fieldInfos) {
     for (ScoreDoc scoreDoc : scoreDocs) {
-      String entityId = idToEntityIdMap.get(scoreDoc.doc);
-      if (entityId != null) {
-        float weight = 1000;
-        for (FieldInfo fieldInfo : fieldInfos) {
-          Map<String, Float> fieldScore = scoreMap.getOrDefault(
-              CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId), Maps.newHashMap());
-          weight = weight + fieldInfo.getWeight() * fieldScore.getOrDefault(
-              CommonUtils.concat(fieldInfo.getName(), fieldInfo.getSource().name()),
-              fieldInfo.getDefaultValue());
-        }
-        scoreDoc.score = weight;
+      if (idToEntityIdMap.containsKey(scoreDoc.doc)) {
+        scoreDoc.score = computeEntityScore(fieldInfos, idToEntityIdMap.get(scoreDoc.doc),
+            scoreMap);
       } else {
         log.error("Id does not found for {}", scoreDoc.doc);
       }
     }
 
+  }
+
+  private float computeEntityScore(List<FieldInfo> fieldInfos, String entityId,
+      Map<String, Map<String, Float>> scoreMap) {
+    float weight = 1000;
+    for (FieldInfo fieldInfo : fieldInfos) {
+      Map<String, Float> fieldScore = scoreMap.getOrDefault(
+          CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId), Maps.newHashMap());
+      weight = weight + fieldInfo.getWeight() * fieldScore.getOrDefault(
+          CommonUtils.concat(fieldInfo.getName(), fieldInfo.getSource().name()),
+          fieldInfo.getDefaultValue());
+    }
+    return weight;
   }
 
 
@@ -150,27 +154,32 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       Map<String, Map<String, Float>> scoreMap, Map<String, Object> data) {
     List<FieldInfo> fieldInfos = FieldUtils
         .filterFieldInfoOnSource(Source.REQUEST, fields.getFieldInfos());
-    if (CommonUtils.isEmpty(data) || CommonUtils.isEmpty(fieldInfos) || !data.containsKey("scores")) {
+    if (CommonUtils.isEmpty(data) || CommonUtils.isEmpty(fieldInfos) || !data
+        .containsKey("scores")) {
       return;
     }
-    Map<String, Map<String, Float>> entityToScores = (Map<String, Map<String, Float>>) data
-        .get("scores");
     for (FieldInfo fieldInfo : fieldInfos) {
-      for (String entityId : entityIds) {
-        String uniqueId = CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId);
-        Map<String, Float> fieldScore = entityToScores.get(uniqueId);
-        if (fieldScore != null) {
-          Map<String, Float> fieldScoreMap = scoreMap.getOrDefault(uniqueId, Maps.newHashMap());
-          fieldScoreMap.put(CommonUtils.concat(fieldInfo.getName(), Source.REQUEST.name()),
-              CommonUtils.covertToFloat(fieldScore.get(fieldInfo.getName())));
-          scoreMap.put(uniqueId, fieldScoreMap);
-        }
-      }
+      populateScoreForEntity(entityIds, fieldInfo, (Map<String, Map<String, Float>>) data
+          .get("scores"), scoreMap);
     }
 
   }
 
-  private void sortTopDoc(TopDocs topDocs){
+  private void populateScoreForEntity(List<String> entityIds, FieldInfo fieldInfo,
+      Map<String, Map<String, Float>> data, Map<String, Map<String, Float>> scoreMap) {
+    for (String entityId : entityIds) {
+      String uniqueId = CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId);
+      Map<String, Float> fieldScore = data.get(uniqueId);
+      if (!Objects.isNull(fieldScore)) {
+        Map<String, Float> fieldScoreMap = scoreMap.getOrDefault(uniqueId, Maps.newHashMap());
+        fieldScoreMap.put(CommonUtils.concat(fieldInfo.getName(), Source.REQUEST.name()),
+            CommonUtils.covertToFloat(fieldScore.get(fieldInfo.getName())));
+        scoreMap.put(uniqueId, fieldScoreMap);
+      }
+    }
+  }
+
+  private void sortTopDoc(TopDocs topDocs) {
     Arrays.sort(topDocs.scoreDocs, (a, b) -> {
       if (a.score > b.score) {
         return -1;
@@ -193,14 +202,7 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
     }
     MultiGetRequest multiGetRequest = new MultiGetRequest();
     for (String entityId : entityIds) {
-      for (FieldInfo fieldInfo : fieldInfos) {
-        MultiGetRequest.Item item = new Item(fieldInfo.getIndexName(),
-            CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId));
-        item.storedFields(fieldInfo.getName());
-        item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        item.versionType(VersionType.INTERNAL);
-        multiGetRequest.add(item);
-      }
+      addItemToMultiRequestPayload(fieldInfos, entityId, multiGetRequest);
     }
     multiGetRequest.preference("_local");
     CompletableFuture<MultiGetResponse> completableFuture = new CompletableFuture<>();
@@ -217,6 +219,18 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
           scoreMap);
     }
 
+  }
+
+  private void addItemToMultiRequestPayload(List<FieldInfo> fieldInfos, String entityId,
+      MultiGetRequest multiGetRequest) {
+    for (FieldInfo fieldInfo : fieldInfos) {
+      MultiGetRequest.Item item = new Item(fieldInfo.getIndexName(),
+          CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId));
+      item.storedFields(fieldInfo.getName());
+      item.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+      item.versionType(VersionType.INTERNAL);
+      multiGetRequest.add(item);
+    }
   }
 
   @MonitoredFunction
@@ -262,7 +276,6 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       }
     }
   }
-
 
 
   private List<FieldAndFormat> getFieldFormat(List<FieldInfo> fieldInfos) {

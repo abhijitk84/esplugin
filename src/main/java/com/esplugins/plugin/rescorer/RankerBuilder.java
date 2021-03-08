@@ -32,8 +32,7 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   private static final ParseField DATA = new ParseField("data");
   private static final ConstructingObjectParser<RankerBuilder, Void> PARSER = new ConstructingObjectParser<>(
       NAME,
-      args -> new RankerBuilder((boolean) args[0], (Fields) args[1],
-          (Map<String, Object>) args[2]));
+      args -> new RankerBuilder((boolean) args[0], (Fields) args[1], (Map<String, Object>) args[2]));
 
   static {
     PARSER.declareBoolean(constructorArg(), IS_RANKING_ENABLE);
