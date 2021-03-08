@@ -17,7 +17,7 @@ public class Fields {
   static {
     PARSER.declareObjectArray(constructorArg(), (parser, context) -> FieldInfo.fromXContent(parser),
         new ParseField("field_infos"));
-    PARSER.declareFloat(optionalConstructorArg(), new ParseField("request_time_out"));
+    PARSER.declareInt(optionalConstructorArg(), new ParseField("request_time_out"));
 
   }
 

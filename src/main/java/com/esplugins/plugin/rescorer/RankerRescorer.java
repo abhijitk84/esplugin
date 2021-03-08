@@ -89,20 +89,12 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       getFieldScoreFromRequest(rankerContext.getFields(), entityIds, scoreMap,
           rankerContext.getData());
       computeFinalScore(idToEntityIdMap,scoreMap,scoreDocs,rankerContext.getFields().getFieldInfos());
+      sortTopDoc(topDocs);
     }catch (Exception e){
       log.error("excption occured while rescoring ",e);
     }
 
-    Arrays.sort(topDocs.scoreDocs, (a, b) -> {
-      if (a.score > b.score) {
-        return -1;
-      }
-      if (a.score < b.score) {
-        return 1;
-      }
-      // Safe because doc ids >= 0
-      return a.doc - b.doc;
-    });
+
     return topDocs;
   }
 
@@ -144,6 +136,7 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
               CommonUtils.concat(fieldInfo.getName(), fieldInfo.getSource().name()),
               fieldInfo.getDefaultValue());
         }
+        scoreDoc.score = weight;
       } else {
         log.error("Id does not found for {}", scoreDoc.doc);
       }
@@ -157,15 +150,11 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       Map<String, Map<String, Float>> scoreMap, Map<String, Object> data) {
     List<FieldInfo> fieldInfos = FieldUtils
         .filterFieldInfoOnSource(Source.REQUEST, fields.getFieldInfos());
-    if (data == null || data.isEmpty() || CommonUtils.isEmpty(fieldInfos)) {
+    if (CommonUtils.isEmpty(data) || CommonUtils.isEmpty(fieldInfos) || !data.containsKey("scores")) {
       return;
     }
-
     Map<String, Map<String, Float>> entityToScores = (Map<String, Map<String, Float>>) data
         .get("scores");
-    if (entityToScores == null || entityToScores.isEmpty()) {
-      return;
-    }
     for (FieldInfo fieldInfo : fieldInfos) {
       for (String entityId : entityIds) {
         String uniqueId = CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId);
@@ -173,12 +162,25 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
         if (fieldScore != null) {
           Map<String, Float> fieldScoreMap = scoreMap.getOrDefault(uniqueId, Maps.newHashMap());
           fieldScoreMap.put(CommonUtils.concat(fieldInfo.getName(), Source.REQUEST.name()),
-              fieldScore.get(fieldInfo.getName()));
+              CommonUtils.covertToFloat(fieldScore.get(fieldInfo.getName())));
           scoreMap.put(uniqueId, fieldScoreMap);
         }
       }
     }
 
+  }
+
+  private void sortTopDoc(TopDocs topDocs){
+    Arrays.sort(topDocs.scoreDocs, (a, b) -> {
+      if (a.score > b.score) {
+        return -1;
+      }
+      if (a.score < b.score) {
+        return 1;
+      }
+      // Safe because doc ids >= 0
+      return a.doc - b.doc;
+    });
   }
 
   @MonitoredFunction
@@ -255,11 +257,12 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
     for (Map.Entry<String, DocumentField> entrySet : documentMap.entrySet()) {
       if (!"_id".equalsIgnoreCase(entrySet.getKey())) {
         scores.put(CommonUtils.concat(entrySet.getKey(), source.name()),
-            entrySet.getValue().getValue());
+            CommonUtils.covertToFloat(entrySet.getValue().getValue()));
         scoreMap.put(uniqueIdentifier, scores);
       }
     }
   }
+
 
 
   private List<FieldAndFormat> getFieldFormat(List<FieldInfo> fieldInfos) {
