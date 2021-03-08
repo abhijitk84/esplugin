@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -255,10 +256,10 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
     );
     Map<Integer, String> idMap = Maps.newHashMap();
 
-    for (int index = 0; index < searchHits.size(); index++) {
-      Map<String, DocumentField> maps = searchHits.get(index).getFields();
+    for (SearchHit searchHit : searchHits) {
+      Map<String, DocumentField> maps = searchHit.getFields();
       String uniqueIdentifier = maps.get("_id").getValue().toString();
-      idMap.put(searchHits.get(index).docId(), uniqueIdentifier);
+      idMap.put(searchHit.docId(), uniqueIdentifier);
       populateScore(Source.PRIMARY_INDEX, uniqueIdentifier, maps, scoreMap);
     }
     return idMap;
