@@ -238,8 +238,7 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       QueryShardContext queryShardContext,
       List<ScoreDoc> scoreDocs, IndexSearcher searcher, Map<String, Map<String, Float>> scoreMap)
       throws IOException {
-    List<LeafReaderContext> leafReaderContexts = new ArrayList<>();
-    leafReaderContexts.addAll(searcher.getTopReaderContext().leaves());
+    List<LeafReaderContext> leafReaderContexts = new ArrayList<>(searcher.getTopReaderContext().leaves());
     DocValueReader docValueReader = new DocValueReader();
     List<FieldAndFormat> fieldAndFormats = getFieldFormat(FieldUtils.filterFieldInfoOnSource(
         Source.PRIMARY_INDEX,
