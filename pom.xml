@@ -9,7 +9,7 @@
   <version>1.0-SNAPSHOT</version>
 
   <properties>
-    <elasticsearch.version>7.2.1</elasticsearch.version>
+    <elasticsearch.version>7.2.0</elasticsearch.version>
     <maven.compiler.target>1.8</maven.compiler.target>
     <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
     <elasticsearch.plugin.name>es-rescorer</elasticsearch.plugin.name>
