@@ -89,7 +89,7 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       getFieldScoreFromRequest(rankerContext.getFields(), entityIds, scoreMap,
           rankerContext.getData());
       computeFinalScore(idToEntityIdMap, scoreMap, scoreDocs,
-          rankerContext.getFields().getFieldInfos());
+          rankerContext.getFields().getFieldInfos(),rankerContext.getBoostingScore());
       sortTopDoc(topDocs);
     } catch (Exception e) {
       log.error("excption occured while rescoring ", e);
@@ -123,11 +123,11 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
 
   private void computeFinalScore(Map<Integer, String> idToEntityIdMap,
       Map<String, Map<String, Float>> scoreMap, List<ScoreDoc> scoreDocs,
-      List<FieldInfo> fieldInfos) {
+      List<FieldInfo> fieldInfos,float boostingScore) {
     for (ScoreDoc scoreDoc : scoreDocs) {
       if (idToEntityIdMap.containsKey(scoreDoc.doc)) {
         scoreDoc.score = computeEntityScore(fieldInfos, idToEntityIdMap.get(scoreDoc.doc),
-            scoreMap);
+            scoreMap,boostingScore);
       } else {
         log.error("Id does not found for {}", scoreDoc.doc);
       }
@@ -136,8 +136,8 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
   }
 
   private float computeEntityScore(List<FieldInfo> fieldInfos, String entityId,
-      Map<String, Map<String, Float>> scoreMap) {
-    float weight = 1000;
+      Map<String, Map<String, Float>> scoreMap,float boostingScore) {
+    float weight = boostingScore;
     for (FieldInfo fieldInfo : fieldInfos) {
       Map<String, Float> fieldScore = scoreMap.getOrDefault(
           CommonUtils.concat(fieldInfo.getIdIdentifiers(), entityId), Maps.newHashMap());

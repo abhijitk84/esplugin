@@ -30,9 +30,11 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   private static final ParseField IS_RANKING_ENABLE = new ParseField("is_ranking_enable");
   private static final ParseField FIELDS = new ParseField("fields");
   private static final ParseField DATA = new ParseField("data");
+  private static final ParseField BOOSTING_SCORE = new ParseField("boosting_score");
   private static final ConstructingObjectParser<RankerBuilder, Void> PARSER = new ConstructingObjectParser<>(
       NAME,
-      args -> new RankerBuilder((boolean) args[0], (Fields) args[1], (Map<String, Object>) args[2]));
+      args -> new RankerBuilder((boolean) args[0], (Fields) args[1], (Map<String, Object>) args[2],
+          (Float) args[3]));
 
   static {
     PARSER.declareBoolean(constructorArg(), IS_RANKING_ENABLE);
@@ -40,18 +42,22 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
         FIELDS, ObjectParser.ValueType.OBJECT);
     PARSER.declareField(optionalConstructorArg(), XContentParser::map, DATA,
         ObjectParser.ValueType.OBJECT);
+    PARSER.declareFloat(optionalConstructorArg(), BOOSTING_SCORE);
   }
 
   private final boolean isRankingEnable;
   private final Fields fields;
   private final Map<String, Object> data;
+  private final Float boostingScore;
 
   public RankerBuilder(boolean isRankingEnable,
       @Nullable Fields fields,
-      @Nullable Map<String, Object> data) {
+      @Nullable Map<String, Object> data,
+      @Nullable Float boostingScore) {
     this.isRankingEnable = isRankingEnable;
     this.fields = fields;
     this.data = data;
+    this.boostingScore = boostingScore;
   }
 
   public RankerBuilder(StreamInput in) throws IOException {
@@ -59,6 +65,7 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
     this.isRankingEnable = in.readBoolean();
     this.fields = (Fields) in.readGenericValue();
     this.data = in.readMap();
+    this.boostingScore = in.readFloat();
   }
 
   public static RankerBuilder fromXContent(XContentParser parser) {
@@ -94,8 +101,9 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   }
 
   @Override
-  public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
-    return new RankerContext(isRankingEnable, windowSize, fields, data, context);
+  public RescoreContext innerBuildContext(int windowSize, QueryShardContext context)
+      throws IOException {
+    return new RankerContext(isRankingEnable, windowSize, fields, data, boostingScore, context);
   }
 
   @Override

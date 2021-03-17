@@ -12,18 +12,21 @@ public class RankerContext  extends RescoreContext {
   private final int windowSize;
   private final Fields fields;
   private final Map<String,Object> data;
+  private final float boostingScore;
   private QueryShardContext queryShardContext;
 
   public RankerContext( boolean isRankingEnable,
       int windowSize,
       @Nullable  Fields fields,
       @Nullable  Map<String,Object> data,
+      @Nullable  Float boostingScore,
       QueryShardContext queryShardContext) {
     super(windowSize, RankerRescorer.getInStance());
     this.isRankingEnable = isRankingEnable;
     this.windowSize = windowSize;
     this.fields = fields;
     this.data = data;
+    this.boostingScore = boostingScore == null || boostingScore <=0 ? 0f : boostingScore;
     this.queryShardContext = queryShardContext;
   }
 
@@ -46,5 +49,9 @@ public class RankerContext  extends RescoreContext {
 
   public QueryShardContext getQueryShardContext() {
     return queryShardContext;
+  }
+
+  public float getBoostingScore() {
+    return boostingScore;
   }
 }
