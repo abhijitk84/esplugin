@@ -10,6 +10,12 @@
   <modelVersion>4.0.0</modelVersion>
 
   <artifactId>esplugin-rescorer</artifactId>
-
+  <dependencies>
+    <dependency>
+      <groupId>com.phonepe.backend</groupId>
+      <artifactId>esplugin-models</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
 
 </project>

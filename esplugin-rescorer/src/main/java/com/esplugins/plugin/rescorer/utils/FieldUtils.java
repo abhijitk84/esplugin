@@ -1,7 +1,7 @@
 package com.esplugins.plugin.rescorer.utils;
 
-import com.esplugins.plugin.models.FieldInfo;
-import com.esplugins.plugin.models.Source;
+import com.esplugins.models.FieldInfo;
+import com.esplugins.models.Source;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;

@@ -1,5 +1,6 @@
-package com.esplugins.plugin.models;
+package com.esplugins.plugin.rescorer;
 
+import com.esplugins.models.Fields;
 import com.esplugins.plugin.rescorer.RankerRescorer;
 import java.util.Map;
 import org.elasticsearch.common.Nullable;

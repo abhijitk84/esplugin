@@ -3,8 +3,7 @@ package com.esplugins.plugin.rescorer;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-import com.esplugins.plugin.models.Fields;
-import com.esplugins.plugin.models.RankerContext;
+import com.esplugins.models.Fields;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;

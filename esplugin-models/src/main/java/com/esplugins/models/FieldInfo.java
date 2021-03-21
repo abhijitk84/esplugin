@@ -1,4 +1,4 @@
-package com.esplugins.plugin.models;
+package com.esplugins.models;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;

@@ -2,10 +2,9 @@ package com.esplugins.plugin.rescorer;
 
 import static java.util.Collections.singletonList;
 
-import com.esplugins.plugin.models.FieldInfo;
-import com.esplugins.plugin.models.Fields;
-import com.esplugins.plugin.models.RankerContext;
-import com.esplugins.plugin.models.Source;
+import com.esplugins.models.FieldInfo;
+import com.esplugins.models.Fields;
+import com.esplugins.models.Source;
 import com.esplugins.plugin.rescorer.utils.CommonUtils;
 import com.esplugins.plugin.rescorer.utils.FieldUtils;
 import com.google.common.collect.Maps;
