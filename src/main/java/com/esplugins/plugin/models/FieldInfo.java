@@ -3,12 +3,17 @@ package com.esplugins.plugin.models;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+import com.google.common.collect.Lists;
+import java.io.IOException;
 import java.util.List;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-public class FieldInfo {
+public class FieldInfo implements Writeable {
 
   private static final ConstructingObjectParser<FieldInfo, Void> PARSER = new ConstructingObjectParser<>(
       "fields",
@@ -41,10 +46,32 @@ public class FieldInfo {
     this.defaultValue = defaultValue;
     this.source = Source.valueOf(source);
     this.indexName = indexName;
-    this.idIdentifiers = idIdentifiers;
+    this.idIdentifiers = idIdentifiers == null ? Lists.newArrayList() : idIdentifiers;
     this.name = name;
     this.weight = weight;
   }
+
+  public FieldInfo(StreamInput in) throws IOException {
+    this.name = in.readString();
+    this.source = in.readEnum(Source.class);
+    this.indexName = in.readOptionalString();
+    this.idIdentifiers = in.readStringList();
+    this.defaultValue = in.readFloat();
+    this.weight = in.readFloat();
+    System.out.println(this.toString());
+  }
+
+  @Override
+  public void writeTo(StreamOutput out) throws IOException {
+    out.writeString(name);
+    out.writeEnum(source);
+    out.writeOptionalString(indexName);
+    out.writeStringCollection(idIdentifiers);
+    out.writeFloat(defaultValue);
+    out.writeFloat(weight);
+  }
+
+
 
   public static FieldInfo fromXContent(XContentParser parser) {
     return PARSER.apply(parser, null);
@@ -74,4 +101,9 @@ public class FieldInfo {
     return name;
   }
 
+  @Override
+  public String toString() {
+    return "indxname=" +indexName + "weight="+weight + "source="+source + "name="+name
+        +"default="+defaultValue + "idIdentifiers="+idIdentifiers;
+  }
 }

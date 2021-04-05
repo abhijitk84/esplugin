@@ -5,6 +5,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 import com.esplugins.plugin.models.Fields;
 import com.esplugins.plugin.models.RankerContext;
+import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +47,7 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   }
 
   private final boolean isRankingEnable;
-  private final Fields fields;
+  private  Fields fields = new Fields(Lists.newArrayList(),300);
   private final Map<String, Object> data;
   private final Float boostingScore;
 
@@ -63,9 +64,9 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   public RankerBuilder(StreamInput in) throws IOException {
     super(in);
     this.isRankingEnable = in.readBoolean();
-    this.fields = (Fields) in.readGenericValue();
+    this.fields = Fields.readFrom(in);
     this.data = in.readMap();
-    this.boostingScore = in.readFloat();
+    this.boostingScore = in.readOptionalFloat();
   }
 
   public static RankerBuilder fromXContent(XContentParser parser) {
@@ -75,8 +76,9 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
   @Override
   protected void doWriteTo(StreamOutput out) throws IOException {
     out.writeBoolean(isRankingEnable);
-    out.writeGenericValue(fields);
+    fields.writeTo(out);
     out.writeMap(data);
+    out.writeOptionalFloat(boostingScore);
   }
 
   @Override
@@ -97,6 +99,9 @@ public class RankerBuilder extends RescorerBuilder<RankerBuilder> {
     }
     if (DATA != null) {
       builder.field(DATA.getPreferredName(), data);
+    }
+    if(boostingScore != null){
+      builder.field(BOOSTING_SCORE.getPreferredName(),boostingScore);
     }
   }
 

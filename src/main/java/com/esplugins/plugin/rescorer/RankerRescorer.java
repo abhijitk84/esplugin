@@ -72,7 +72,6 @@ public class RankerRescorer extends AbstractLifecycleComponent implements Rescor
       return topDocs;
     }
     List<ScoreDoc> scoreDocs = new ArrayList<>();
-
     for (int index = 0; index < windowSize; index++) {
       scoreDocs.add(topDocs.scoreDocs[index]);
     }
