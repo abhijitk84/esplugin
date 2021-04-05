@@ -58,7 +58,6 @@ public class FieldInfo implements Writeable {
     this.idIdentifiers = in.readStringList();
     this.defaultValue = in.readFloat();
     this.weight = in.readFloat();
-    System.out.println(this.toString());
   }
 
   @Override
